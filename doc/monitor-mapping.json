@@ -1,0 +1,78 @@
+{
+  "order": 1,
+  "template": "monitor-*",
+  "settings": {
+    "index": {
+      "refresh_interval": "1s"
+    }
+  },
+  "mappings": {
+    "_default_": {
+      "dynamic_templates": [
+        {
+          "message_field": {
+            "mapping": {
+              "index": "analyzed",
+              "omit_norms": true,
+              "fielddata": {
+                "format": "disabled"
+              },
+              "type": "string"
+            },
+            "match": "message",
+            "match_mapping_type": "string"
+          }
+        },
+        {
+          "date_fields": {
+            "mapping": {
+              "index": "not_analyzed",
+              "format": "yyyyMMddHHmmssSSS||yyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis",
+              "type": "date"
+            },
+            "match": "*_TIME",
+            "match_mapping_type": "string"
+          }
+        },
+        {
+          "string_fields": {
+            "mapping": {
+              "index": "not_analyzed",
+              "omit_norms": true,
+              "doc_values": true,
+              "type": "string"
+            },
+            "match_mapping_type": "string",
+            "match": "*"
+          }
+        }
+      ],
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "geoip": {
+          "dynamic": true,
+          "properties": {
+            "location": {
+              "type": "geo_point"
+            },
+            "longitude": {
+              "type": "float"
+            },
+            "latitude": {
+              "type": "float"
+            },
+            "ip": {
+              "type": "ip"
+            }
+          }
+        }
+      },
+      "_all": {
+        "enabled": false
+      }
+    }
+  },
+  "aliases": {}
+}

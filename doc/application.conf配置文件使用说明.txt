@@ -1,0 +1,14 @@
+application.conf
+使用的是typesafe的config库，纯Java写成、零外部依赖、代码精简、功能灵活、API友好。支持Java properties、JSON、JSON超集格式HOCON以及环境变量。它也是Akka的配置管理库
+使用方式，请参考：https://github.com/typesafehub/config
+
+mq{} #rocketmq相关配置
+es{} #elasticsearch相关配置
+procedures{} #目前支持的工序
+rules:[]   #工序链规则配置
+
+仅对rules作详细说明
+配置必须有一个名称为DEFAULT的默认工序链，数据一般情况走这个工序链处理入库，其他工序链继承自DEFAULT工序链
+
+工序配置说明
+timestamp

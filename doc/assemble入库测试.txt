@@ -1,0 +1,29 @@
+
+1个pullconsumer实例，topic4个读队列，4个写队列，1个master，无slaver，异步复制
+另外8线程、4线程数并不确定，走默认值，线程池会根据量的大小自动调节线程数
+
+8线程，每批次1000条，总数据1万，每条消息48字节，平均耗费10秒
+2016-09-08 11:36:36,899 (ConsumeMessageThread_9) [INFO - com.htjc.assemble.MsgHandler.consumeMessage(MsgHandler.java:52)] <consumer msg...>
+2016-09-08 11:36:46,341 (ConsumeMessageThread_10) [INFO - com.htjc.assemble.MsgHandler.handleResponse(MsgHandler.java:128)] <insert into elasticsearch 281 docs success, take 911 millis>
+
+8线程，每批次1000条，总数据10万，每条消息48字节，平均耗费1分15秒
+2016-09-08 13:37:56,834 (ConsumeMessageThread_1) [INFO - com.htjc.assemble.MsgHandler.consumeMessage(MsgHandler.java:52)] <consumer msg...>
+2016-09-08 13:39:11,708 (ConsumeMessageThread_7) [INFO - com.htjc.assemble.MsgHandler.handleResponse(MsgHandler.java:128)] <insert into elasticsearch 415 docs success, take 642 millis>
+
+1线程，每批次1000条，总数据10万，每条消息48字节，平均耗费1分50秒
+2016-09-08 13:45:51,590 (ConsumeMessageThread_1) [INFO - com.htjc.assemble.MsgHandler.consumeMessage(MsgHandler.java:52)] <consumer msg...>
+2016-09-08 13:47:41,174 (ConsumeMessageThread_1) [INFO - com.htjc.assemble.MsgHandler.handleResponse(MsgHandler.java:128)] <insert into elasticsearch 447 docs success, take 468 millis>
+
+1线程，每批次1000条，总数据1万，每条消息10262字节，平均耗费48秒
+2016-09-08 14:29:12,689 (ConsumeMessageThread_1) [INFO - com.htjc.assemble.MsgHandler.consumeMessage(MsgHandler.java:54)] <consumer msg...>
+2016-09-08 14:30:00,038 (ConsumeMessageThread_1) [INFO - com.htjc.assemble.MsgHandler.handleResponse(MsgHandler.java:134)] <insert into elasticsearch 475 docs success, take 747 millis>
+
+
+1线程，每批次1000条，总数据10万，每条消息10262字节，平均耗费6分45秒
+2016-09-08 14:17:41,109 (ConsumeMessageThread_1) [INFO - com.htjc.assemble.MsgHandler.consumeMessage(MsgHandler.java:54)] <consumer msg...>
+2016-09-08 14:24:26,694 (ConsumeMessageThread_1) [INFO - com.htjc.assemble.MsgHandler.handleResponse(MsgHandler.java:134)] <insert into elasticsearch 424 docs success, take 2057 millis>
+
+4线程，每批次1000条，总数据1万，每条消息10262字节，平均耗费32秒
+2016-09-08 14:32:30,756 (ConsumeMessageThread_2) [INFO - com.htjc.assemble.MsgHandler.consumeMessage(MsgHandler.java:54)] <consumer msg...>
+2016-09-08 14:33:02,095 (ConsumeMessageThread_3) [INFO - com.htjc.assemble.MsgHandler.handleResponse(MsgHandler.java:134)] <insert into elasticsearch 282 docs success, take 1070 millis>
+

@@ -1,0 +1,58 @@
+在linux环境上运行
+
+1.解压
+tar -zxvf assemble*.tar.gz
+2.进入解压后的目录
+cd assemble*
+3.启动
+sh ./bin/assemble.sh &
+验证：
+    控制台打印
+    2016-09-13 18:56:59,960 (main) [INFO - com.htjc.assemble.Assemble.main(Assemble.java:79)] <start success>
+    表明启动成功
+
+4.关闭
+jps找到Assemble进程
+    如：10950 Assemble
+执行 kill 10950 关闭进程
+验证：
+    jps没有找到Assemble进程说明关闭成功
+
+
+/////////////////////////////////////////////
+使用带参数的方式启动
+
+sh ./bin/assemble.sh -h     #查看支持的参数
+
+usage: assemble [-cc <arg>] [-D] [-f <arg>] [-h]
+ -cc,--config-center <arg>   use config-center? default is true
+ -D                          use value for given property
+ -f,--conf-file <arg>        specify a config file
+ -h,--help                   display help text
++ exit 0
+
+#-D参数说明
+-D 可指定application.conf中配置的的参数 mq、es、index,目前procedures和rules无法通过参数的方式指定
+优先级：-D指定 >  application.conf ,即通过-D指定的参数值会覆盖application.conf中配置的值
+示例：
+    sh ./bin/assemble.sh -Dmq.namesrv=192.168.70.104:9876,192.168.70.105:9876 -Dmq.consumerGroup=rocketG1
+
+配置中嵌套字段使用.连接，如es.cluster 、 es.shield.enabled等
+
+#-f参数说明
+使用-f可指定application.conf配置文件的位置
+示例：
+    sh ./bin/assemble.sh -f /home/hadoop/app/test/t.conf    #使用绝对路径
+    sh ./bin/assemble.sh -f ../t.conf                       #使用相对路径
+
+#-cc参数说明
+使用-cc可指定是否使用配置中心，默认为使用
+示例：
+    sh ./bin/assemble.sh -cc true   #使用配置中心，此时-f参数无效
+    sh ./bin/assemble.sh -cc false  #不使用配置中心，使用application.conf配置，或者使用-f参数指定的配置
+
+
+////////////////////////////////////////////
+
+
+
