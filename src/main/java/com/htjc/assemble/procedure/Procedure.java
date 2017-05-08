@@ -16,6 +16,6 @@ public interface Procedure extends NamedComponent, ConfigComponent {
      * @return Original or modified doc, or {@code null} if the Doc
      * is to be dropped (i.e. filtered out).
      */
-    Doc process(Doc doc);
+    Doc process(Doc doc) throws Exception;
 
 }

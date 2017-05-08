@@ -1,6 +1,5 @@
 package com.htjc.assemble.procedure.impl;
 
-import com.alibaba.fastjson.JSON;
 import com.htjc.assemble.model.Doc;
 import com.htjc.assemble.procedure.AbstractProcedure;
 import com.htjc.assemble.util.IpSearchUtil;
@@ -23,43 +22,39 @@ public class GeoIpProcedure extends AbstractProcedure {
 
     private static final Logger logger = LoggerFactory.getLogger(GeoIpProcedure.class);
 
-    //ip字段名称
+    //ip字段名称(非必填，默认为userIP)
     private String ip;
 
-    //经纬度字段名称
+    //经纬度字段名称(非必填，默认为geoip)
     private String geoip;
 
     @Override
-    public Doc process(Doc doc) {
+    public Doc process(Doc doc) throws Exception {
         Map<String, Object> map = doc.getBody();
-        if (!map.containsKey(ip)) {
-            logger.warn("ip field ({}) is null, doc:{}", ip, JSON.toJSONString(map));
-            return doc;
-        }
+        Object obj = map.get(ip);
+        if (obj == null) return doc;
 
-        String ipStr = map.get(ip).toString();
+        String ipStr = obj.toString();
         if (StringUtils.isBlank(ipStr)) {
-            logger.warn("ip field ({}) value is blank, doc:{}", ip, ipStr, JSON.toJSONString(map));
+            map.remove(ip);//值为空白时，移除该字段
             return doc;
         }
 
+        //TODO 需要测试
         Geography geography = IpSearchUtil.getToVo(ipStr);
-        if (geography == null) {
-            logger.warn("parse ip={} error, doc:{}", ipStr, JSON.toJSONString(map));
-            return doc;
+        if (geography != null) {
+            map.put(AUXILIARY_FIELD_MARK + "continent", geography.getContinent());
+            map.put(AUXILIARY_FIELD_MARK + "country", geography.getCountry());
+            map.put(AUXILIARY_FIELD_MARK + "province", geography.getProvince());
+            map.put(AUXILIARY_FIELD_MARK + "city", geography.getCity());
+            map.put(AUXILIARY_FIELD_MARK + "operator", geography.getOperator());
+            map.put(geoip, GeoPoint.parseFromLatLon(geography.getLatitude() + "," + geography.getLongitude()));
         }
-
-        map.put(AUXILIARY_FIELD_MARK + "continent", geography.getContinent());
-        map.put(AUXILIARY_FIELD_MARK + "country", geography.getCountry());
-        map.put(AUXILIARY_FIELD_MARK + "province", geography.getProvince());
-        map.put(AUXILIARY_FIELD_MARK + "city", geography.getCity());
-        map.put(AUXILIARY_FIELD_MARK + "operator", geography.getOperator());
-        map.put(geoip, GeoPoint.parseFromLatLon(geography.getLatitude() + "," + geography.getLongitude()));
         return doc;
     }
 
     @Override
-    public void setConfig(Properties config) {
+    public void setConfig(Properties config) throws Exception {
         super.setConfig(config);
         ip = config.getProperty("ipField", "userIP ");
         geoip = config.getProperty("geoipField", "geoip");

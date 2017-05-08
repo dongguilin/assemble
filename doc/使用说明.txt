@@ -32,7 +32,7 @@ usage: assemble [-cc <arg>] [-D] [-f <arg>] [-h]
 + exit 0
 
 #-D参数说明
--D 可指定application.conf中配置的的参数 mq、es、index,目前procedures和rules无法通过参数的方式指定
+-D 仅限指定application.conf中mq参数
 优先级：-D指定 >  application.conf ,即通过-D指定的参数值会覆盖application.conf中配置的值
 示例：
     sh ./bin/assemble.sh -Dmq.namesrv=192.168.70.104:9876,192.168.70.105:9876 -Dmq.consumerGroup=rocketG1

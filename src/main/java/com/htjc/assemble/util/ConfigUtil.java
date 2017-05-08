@@ -1,7 +1,7 @@
 package com.htjc.assemble.util;
 
 import com.htjc.configs.base.util.ConfigsUtil;
-import com.htjc.configs.client.main.LoaderFromEnv;
+import com.htjc.configs.client.main.Loader;
 import com.htjc.configs.watcher.action.Action;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -93,7 +93,7 @@ public class ConfigUtil {
      * @param versionNo
      */
     private static void loadFromConfigCenter(String env, String appName, String versionNo) {
-        new LoaderFromEnv(env).init(appName, versionNo, new Action() {
+        new Loader(env).init(appName, versionNo, new Action() {
             @Override
             public void beforeExecAction(Map<String, Object> map) {
 

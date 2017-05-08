@@ -14,7 +14,7 @@ import java.util.Map;
 public class FilterNullTimeProcedure extends AbstractProcedure {
 
     @Override
-    public Doc process(Doc doc) {
+    public Doc process(Doc doc) throws Exception {
         Map<String, Object> map = doc.getBody();
         Iterator<Map.Entry<String, Object>> iter = map.entrySet().iterator();
         while (iter.hasNext()) {

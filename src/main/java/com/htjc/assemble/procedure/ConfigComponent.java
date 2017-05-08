@@ -7,7 +7,7 @@ import java.util.Properties;
  * 配置接口
  */
 public interface ConfigComponent {
-    void setConfig(Properties config);
+    void setConfig(Properties config) throws Exception;
 
     Properties getConfig();
 }

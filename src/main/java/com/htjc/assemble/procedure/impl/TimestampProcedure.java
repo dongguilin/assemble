@@ -2,6 +2,7 @@ package com.htjc.assemble.procedure.impl;
 
 import com.htjc.assemble.model.Doc;
 import com.htjc.assemble.procedure.AbstractProcedure;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,19 +22,19 @@ public class TimestampProcedure extends AbstractProcedure {
 
     private static final Logger logger = LoggerFactory.getLogger(TimestampProcedure.class);
 
-    //字段名称
+    //字段名称(必填)
     private String dateField;
 
-    //字段值的时间格式
+    //字段值的时间格式(isTimestamp=false时，该值必填)
     private String dateFormatStr;
 
-    //字段值是否是long型时间戳
+    //字段值是否是long型时间戳，默认为false
     private boolean isTimestamp;
 
     private DateFormat dateFormat;
 
     @Override
-    public Doc process(Doc doc) {
+    public Doc process(Doc doc) throws Exception {
         Map<String, Object> map = doc.getBody();
 
         Date date = null;
@@ -41,14 +42,8 @@ public class TimestampProcedure extends AbstractProcedure {
             date = new Date();
         } else {
             if (!isTimestamp) {
-                try {
-                    Object obj = map.get(dateField);
-                    if (obj == null) return null;
-                    date = dateFormat.parse(obj.toString());
-                } catch (Exception e) {
-                    logger.error("dateField parse error:{}", doc);
-                    return null;
-                }
+                Object obj = map.get(dateField);
+                date = dateFormat.parse(obj.toString());
             } else {
                 date = new Date((long) map.get(dateField));
             }
@@ -59,12 +54,21 @@ public class TimestampProcedure extends AbstractProcedure {
     }
 
     @Override
-    public void setConfig(Properties config) {
+    public void setConfig(Properties config) throws Exception {
         super.setConfig(config);
-        dateField = config.getProperty("dateField", "CREATE_TIME");
-        dateFormatStr = config.getProperty("dateFormatStr", "yyyyMMddHHmmssSSS");
         isTimestamp = Boolean.parseBoolean(config.getProperty("isTimestamp", "false"));
-        dateFormat = new SimpleDateFormat(dateFormatStr);
+        dateField = config.getProperty("dateField");
+        if (StringUtils.isBlank(dateField)) {
+            throw new IllegalArgumentException("dateField can't be blank");
+        }
+        dateFormatStr = config.getProperty("dateFormatStr");
+        if (!isTimestamp) {
+            if (StringUtils.isBlank(dateFormatStr)) {
+                throw new IllegalArgumentException("dateFormatStr can't be blank");
+            }
+            dateFormat = new SimpleDateFormat(dateFormatStr);
+        }
+
         logger.info("{} config:{}", TimestampProcedure.class.getSimpleName(), config);
     }
 

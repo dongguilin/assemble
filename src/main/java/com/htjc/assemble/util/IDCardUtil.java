@@ -22,6 +22,12 @@ import static com.htjc.assemble.util.ConfigConstants.AUXILIARY_FIELD_MARK;
 /**
  * Created by guilin on 2016/9/29.
  * 身份证工具类
+ * 1、号码的结构 公民身份号码是特征组合码，由十七位数字本体码和一位校验码组成。排列顺序从左至右依次为：六位数字地址码，
+ * 八位数字出生日期码，三位数字顺序码和一位数字校验码。
+ * 2、地址码(前六位数）表示编码对象常住户口所在县(市、旗、区)的行政区划代码，按GB/T2260的规定执行。
+ * 3、出生日期码（第七位至十四位）表示编码对象出生的年、月、日，按GB/T7408的规定执行，年、月、日代码之间不用分隔符。
+ * 4、顺序码（第十五位至十七位）表示在同一地址码所标识的区域范围内，对同年、同月、同日出生的人编定的顺序号， 顺序码的奇数分配给男性，偶数分配给女性。
+ * 5、校验码（第十八位数）
  */
 public class IDCardUtil {
 
@@ -156,9 +162,8 @@ public class IDCardUtil {
         return address;
     }
 
-    public static Address parse2Address(String cid) {
+    public static Address parse2Address(String cid) throws Exception {
         Address address = new Address();
-
         try {
             String addressCode = cid.substring(0, 6);
             String addressStr = new String(props.get(addressCode).toString().getBytes("iso-8859-1"), "utf-8");
@@ -175,7 +180,7 @@ public class IDCardUtil {
             }
         } catch (UnsupportedEncodingException e) {
             logger.error("IDCardAddressCode.properties 文件编码有误", e);
-            return null;
+            throw e;
         }
         return address;
     }

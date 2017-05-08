@@ -28,7 +28,7 @@ public abstract class AbstractProcedure implements Procedure {
     }
 
     @Override
-    public void setConfig(Properties config) {
+    public void setConfig(Properties config) throws Exception {
         this.config = config;
     }
 

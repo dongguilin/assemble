@@ -1,6 +1,5 @@
 package com.htjc.assemble.procedure.impl;
 
-import com.alibaba.fastjson.JSON;
 import com.htjc.assemble.model.Doc;
 import com.htjc.assemble.procedure.AbstractProcedure;
 import org.apache.commons.collections.CollectionUtils;
@@ -11,8 +10,6 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static com.htjc.assemble.util.ConfigConstants.AUXILIARY_FIELD_MARK;
 
 /**
  * Created by guilin on 2016/10/8.
@@ -25,15 +22,15 @@ public class RegexProcedure extends AbstractProcedure {
     private List<RegexModel> regexes;
 
     @Override
-    public Doc process(Doc doc) {
+    public Doc process(Doc doc) throws Exception {
         if (CollectionUtils.isEmpty(regexes)) return doc;
         Map<String, Object> map = doc.getBody();
 
         for (RegexModel model : regexes) {
             String field = model.getField();
-            if (!map.containsKey(field) || StringUtils.isBlank(map.get(field).toString())) {
-                logger.warn("regex field ({}) is null, doc:{}", field, JSON.toJSONString(map));
-            }
+
+            Object obj = map.get(field);
+            if (obj == null || StringUtils.isBlank(obj.toString())) return doc;
 
             String reg = model.getRegex();
             String value = map.get(field).toString();
@@ -43,7 +40,7 @@ public class RegexProcedure extends AbstractProcedure {
             if (m.matches()) {
                 List<String> fields = model.getFields();
                 for (String f : fields) {
-                    map.put(AUXILIARY_FIELD_MARK + f, m.group(f));
+                    map.put(f, m.group(f));
                 }
             }
         }
@@ -51,30 +48,24 @@ public class RegexProcedure extends AbstractProcedure {
     }
 
     @Override
-    public void setConfig(Properties config) {
+    public void setConfig(Properties config) throws Exception {
         super.setConfig(config);
 
         Set<Object> keys = config.keySet();
         if (CollectionUtils.isEmpty(keys)) {
-            logger.error("regex fields can't be null");
-            return;
-        } else {
-            logger.info("{} config:{}", RegexProcedure.class.getSimpleName(), config);
+            throw new IllegalArgumentException("regex fields can't be null");
         }
+        logger.info("{} config:{}", RegexProcedure.class.getSimpleName(), config);
 
         regexes = new ArrayList<>(keys.size());
         for (Object key : keys) {
             String regexStr = config.getProperty(key.toString());
             RegexModel model = new RegexModel(key.toString(), regexStr);
-            try {
-                Matcher matcher = Pattern.compile("\\?<(.*?)>").matcher(regexStr);
-                while (matcher.find()) {
-                    model.getFields().add(matcher.group(1));
-                }
-                regexes.add(model);
-            } catch (Exception e) {
-                logger.error(e.getMessage());
+            Matcher matcher = Pattern.compile("\\?<(.*?)>").matcher(regexStr);
+            while (matcher.find()) {
+                model.getFields().add(matcher.group(1));
             }
+            regexes.add(model);
         }
     }
 

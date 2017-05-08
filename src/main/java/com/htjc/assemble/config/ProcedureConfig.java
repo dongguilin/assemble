@@ -41,4 +41,8 @@ public class ProcedureConfig {
         return MapUtils.unmodifiableMap(procedureChainMap);
     }
 
+    public static void validateRules() {
+        buildChainMap();
+    }
+
 }

@@ -30,7 +30,19 @@
             <includes>
                 <include>**/*</include>
             </includes>
-            <excludes></excludes>
+            <excludes>
+                <exclude>dev/*</exclude>
+                <exclude>prod/*</exclude>
+                <exclude>test/*</exclude>
+            </excludes>
+        </fileSet>
+        <fileSet>
+            <directory>src/main/resources/${build.profile.id}</directory>
+            <outputDirectory>/conf</outputDirectory>
+            <filtered>true</filtered>
+            <includes>
+                <include>*.*</include>
+            </includes>
         </fileSet>
         <fileSet>
             <directory>data</directory>

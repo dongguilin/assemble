@@ -1,29 +1,34 @@
 package com.htjc.assemble;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.alibaba.rocketmq.client.consumer.listener.ConsumeOrderlyContext;
 import com.alibaba.rocketmq.client.consumer.listener.ConsumeOrderlyStatus;
 import com.alibaba.rocketmq.client.consumer.listener.MessageListenerOrderly;
 import com.alibaba.rocketmq.common.message.MessageExt;
+import com.google.common.collect.Lists;
 import com.htjc.assemble.config.ProcedureConfig;
 import com.htjc.assemble.model.Doc;
-import com.htjc.assemble.pool.EsClientPool;
+import com.htjc.assemble.pool.EsRestClientPool;
 import com.htjc.assemble.procedure.AbstractProcedureChain;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpStatus;
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.htjc.assemble.util.ConfigConstants.DEFAULT_PROCEDURES_NAME;
 import static com.htjc.assemble.util.ConfigConstants._ES_ID;
@@ -39,20 +44,26 @@ public class MsgHandler implements MessageListenerOrderly {
 
     @Override
     public ConsumeOrderlyStatus consumeMessage(List<MessageExt> msgs, ConsumeOrderlyContext context) {
+        List<Doc> docList = null;
         try {
             //加工消息
-            List<Doc> docList = processMessages(msgs);
+            docList = processMessages(msgs);
 
-            //批量入库
-            BulkResponse response = batchStoreIntoEs(docList);
+            intoEs(docList);
 
-            //处理入库结果
-            handleResponse(response);
         } catch (Throwable e) {
-            logger.error(e.getMessage(), e);
+            logger.error("batch consumer {} docs error", docList.size(), e);
             return ConsumeOrderlyStatus.SUSPEND_CURRENT_QUEUE_A_MOMENT;
         }
         return ConsumeOrderlyStatus.SUCCESS;
+    }
+
+    private void intoEs(List<Doc> docList) {
+        //批量入库
+        List<Response> responses = batchStoreIntoEsWithRestAPI(docList);
+
+        //处理入库结果
+        handleResponse(responses);
     }
 
     /**
@@ -75,11 +86,11 @@ public class MsgHandler implements MessageListenerOrderly {
             String body = new String(messageExt.getBody(), Charset.defaultCharset());
             Map<String, Object> dataMap = JSON.parseObject(body, Map.class);
 
-            String id = messageExt.getKeys();
-            if (StringUtils.isBlank(id) && dataMap.containsKey(_ES_ID)) {
-                id = dataMap.get(_ES_ID).toString();
+            if (dataMap.containsKey(_ES_ID)) {
+                doc.setId(dataMap.get(_ES_ID).toString());
+            } else {
+                doc.setId(messageExt.getMsgId() + messageExt.getBornTimestamp());
             }
-            doc.setId(id);
 
             String type = messageExt.getTags();
             if (StringUtils.isBlank(type)) {
@@ -107,101 +118,119 @@ public class MsgHandler implements MessageListenerOrderly {
         return docList;
     }
 
-    /**
-     * 批量入数据到elasticsearch
-     *
-     * @param docList
-     */
-    private BulkResponse batchStoreIntoEs(List<Doc> docList) {
+    private List<Response> batchStoreIntoEsWithRestAPI(List<Doc> docList) {
         if (CollectionUtils.isEmpty(docList)) return null;
-
-        Client esClient = null;
-        BulkResponse response = null;
+        List<RestClient> restClientList = null;
+        List<Response> responses = new ArrayList<>();
         try {
-            esClient = EsClientPool.borrowObject(6000);
-            BulkRequestBuilder builder = esClient.prepareBulk();
+            restClientList = EsRestClientPool.borrowObject(6000);
+            StringBuffer buffer = new StringBuffer();
             for (Doc doc : docList) {
-
-                IndexRequest request = null;
-                if (doc.getId() != null) {
-                    request = new IndexRequest(doc.getIndex(), doc.getType(), doc.getId());
-                } else {
-                    request = new IndexRequest(doc.getIndex(), doc.getType());
-                }
-                request.source(JSON.toJSONBytes(doc.getBody()));
-                builder.add(request);
+                buffer.append(buildIndexStr(doc));
             }
-            response = builder.execute().actionGet();
+            HttpEntity entity = new NStringEntity(buffer.toString(), ContentType.APPLICATION_JSON);
+            for (RestClient restClient : restClientList) {
+                Response response = restClient.performRequest("POST", "/_bulk", Collections.<String, String>emptyMap(), entity);
+                responses.add(response);
+            }
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
         } finally {
-            EsClientPool.returnObject(esClient);
+            EsRestClientPool.returnObject(restClientList);
         }
-        return response;
+        return responses;
     }
 
     /**
      * 处理入库结果，入库失败的记录需保存
      *
-     * @param response
+     * @param responses
      */
-    private void handleResponse(BulkResponse response) {
-        if (response == null) return;
-        boolean hasFailures = response.hasFailures();
-        if (!hasFailures) {
-            logger.info("insert into elasticsearch {} docs success, take {} millis",
-                    response.getItems().length, response.getTookInMillis());
-        } else {
-            List<BulkItemResponse.Failure> failureList = extractFailedRecs(response.getItems());
-            int succeed = response.getItems().length - failureList.size();
+    private void handleResponse(List<Response> responses) {
+        if (CollectionUtils.isEmpty(responses)) return;
+        try {
+            for (Response response : responses) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
+                String str = reader.readLine();
+                IOUtils.closeQuietly(reader);
 
-            logger.error("insert into elasticsearch {} docs success, {} docs fail, take {} millis",
-                    succeed, failureList.size(), response.getTookInMillis());
-            String errorMsg = buildFailureMessage(failureList);
-            throw new IllegalStateException(errorMsg);
+                JSONObject rootObj = JSON.parseObject(str);
+                long took = rootObj.getLong("took");
+                boolean hasFailures = rootObj.getBoolean("errors");
+                JSONArray itemArray = rootObj.getJSONArray("items");
+                if (hasFailures) {
+                    List<JSONObject> errors = extractFailedRecs(itemArray);
+                    String errorMsg = buildFailureMessage1(errors);
+                    int succeed = itemArray.size() - errors.size();
+                    logger.error("insert into elasticsearch {} docs success, {} docs fail, took {} millis, ({})",
+                            succeed, errors.size(), took, response.getHost().toString());
+                    throw new IllegalStateException(errorMsg);
+                } else {
+                    logger.info("insert into elasticsearch {} docs success, took {} millis ({})",
+                            itemArray.size(), took, response.getHost().toString());
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
+    }
+
+    /**
+     * 抽取出入elasticsearch失败的记录
+     *
+     * @param array
+     * @return
+     */
+    private List<JSONObject> extractFailedRecs(JSONArray array) {
+        List<JSONObject> errors = Lists.newLinkedList();
+        for (int i = 0; i < array.size(); i++) {
+            JSONObject obj = array.getJSONObject(i);
+            JSONObject indexOrCreateObj = null;
+            if (obj.containsKey("index")) {
+                indexOrCreateObj = obj.getJSONObject("index");
+            } else if (obj.containsKey("create")) {
+                indexOrCreateObj = obj.getJSONObject("create");
+            }
+
+            int code = indexOrCreateObj.getInteger("status");
+            if (code != HttpStatus.SC_OK) {
+                errors.add(obj);
+            }
+        }
+        return errors;
     }
 
     /**
      * 构建错误详情(最多前10条)
      *
-     * @param failureList
+     * @param list
      * @return
      */
-    public String buildFailureMessage(List<BulkItemResponse.Failure> failureList) {
+    private String buildFailureMessage1(List<JSONObject> list) {
         StringBuilder sb = new StringBuilder();
-        sb.append("failure in bulk execution:");
-        int size = failureList.size() > 10 ? 10 : failureList.size();
-
+        sb.append("failure in bulk execution:\n");
+        int size = list.size() > 10 ? 10 : list.size();
         for (int i = 0; i < size; i++) {
-            BulkItemResponse.Failure failure = failureList.get(i);
-            sb.append("\n[").append(i)
-                    .append("]: index [").append(failure.getIndex()).append("], type [").append(failure.getType()).append("], id [").append(failure.getId())
-                    .append("], message [").append(failure.getMessage()).append("]");
-            try {
-                throw failure.getCause();
-            } catch (Throwable throwable) {
-                throwable.printStackTrace();
-            }
+            sb.append(list.get(i).toString()).append("\n");
         }
         return sb.toString();
     }
 
-
     /**
-     * 抽取出入elasticsearch失败的记录
+     * 构建索引文档语句
      *
-     * @param responses
+     * @param doc
      * @return
      */
-    private List<BulkItemResponse.Failure> extractFailedRecs(BulkItemResponse[] responses) {
-        List<BulkItemResponse.Failure> failedList = new ArrayList();
-        for (BulkItemResponse itemResponse : responses) {
-            if (itemResponse.isFailed()) {
-                failedList.add(itemResponse.getFailure());
-            }
-        }
-        return failedList;
+    private String buildIndexStr(Doc doc) {
+        StringBuffer buffer = new StringBuffer();
+        Map<String, Object> map = new HashMap<>();
+        map.put("_index", doc.getIndex());
+        map.put("_type", doc.getType());
+        map.put("_id", doc.getId());
+        buffer.append(JSON.toJSONString(Collections.singletonMap("index", map))).append("\n");
+        buffer.append(JSON.toJSONString(doc.getBody())).append("\n");
+        return buffer.toString();
     }
 
 }

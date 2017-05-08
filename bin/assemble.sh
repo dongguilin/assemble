@@ -74,7 +74,7 @@ run_assemble() {
 # set default params
 ASSEMBLE_CLASSPATH=""
 ASSEMBLE_JAVA_LIBRARY_PATH=""
-JAVA_OPTS="-Xms20m -Xmx100m"
+JAVA_OPTS="-Xms50m -Xmx120m"
 LD_LIBRARY_PATH=""
 
 opt_classpath=""

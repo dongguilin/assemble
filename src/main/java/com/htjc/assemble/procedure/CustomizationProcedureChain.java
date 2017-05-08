@@ -80,6 +80,8 @@ public class CustomizationProcedureChain extends AbstractProcedureChain {
             } catch (InstantiationException e) {
                 logger.error("Unable to access Procedure Exception follows.", e);
                 throw new RuntimeException("Unable to access Procedure.", e);
+            } catch (Exception e) {
+                throw new RuntimeException(tmp.toString(), e);
             }
         }
     }

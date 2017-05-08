@@ -1,30 +1,51 @@
 package com.htjc.assemble.test;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.htjc.assemble.pool.EsRestClientPool;
 import org.apache.commons.collections.map.HashedMap;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
+import org.apache.commons.io.IOUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.*;
 
 /**
  * Created by guilin on 2016/9/8.
  */
-public class EsBatchInsertTest extends EsBase {
+public class EsBatchInsertTest extends BaseTest {
 
     private static final Logger logger = LoggerFactory.getLogger(EsBatchInsertTest.class);
 
+    private List<RestClient> restClientList;
+
+    @Before
+    public void before() throws Exception {
+        restClientList = EsRestClientPool.borrowObject();
+    }
+
+    @After
+    public void after() {
+        EsRestClientPool.returnObject(restClientList);
+    }
+
+
     @Test
-    public void testBatchInsert() {
+    public void testBatchInsert() throws IOException {
         logger.info("//////////////////////////////////////////////////////////////");
         int times = 5;//次数
 
-        int totalRec = 10000;//总记录数
-        int pageSize = 10000;//每个批次数量
+        int totalRec = 1000;//总记录数
+        int pageSize = 1000;//每个批次数量
 
         List<Long> totalList = new ArrayList<>(times);
         List<Long> buildList = new ArrayList<>(times);
@@ -41,19 +62,33 @@ public class EsBatchInsertTest extends EsBase {
             for (int p = 0; p < totalRec / pageSize; p++) {
                 logger.info("第{}次 第{}页", (t + 1), (p + 1));
 
+
                 long buildTimeStart = System.currentTimeMillis();//构建数据 start time
-                BulkRequestBuilder builder = esClient.prepareBulk();
+                StringBuffer buffer = new StringBuffer();
                 for (int i = 0; i < pageSize; i++) {
-                    IndexRequest request = esClient.prepareIndex("documents20", "doc").request();
-                    request.source(source);
-                    builder.add(request);
+                    Map<String, Object> datamap = new HashMap<>();
+                    datamap.put("_index", "document20");
+                    datamap.put("_type", "doc");
+//                  datamap.put("_id", doc.getId());
+                    buffer.append(JSON.toJSONString(Collections.singletonMap("index", datamap))).append("\n");
+                    buffer.append(JSON.toJSONString(buildData())).append("\n");
                 }
+
                 long buildTimeEnd = System.currentTimeMillis();//构建数据 end time
 
                 totalBuildDataTime = totalBuildDataTime + (buildTimeEnd - buildTimeStart);
 
                 long esReqTimeStart = System.currentTimeMillis();//发送es请求 start time
-                BulkResponse response = builder.execute().actionGet();
+                HttpEntity entity = new NStringEntity(buffer.toString(), ContentType.APPLICATION_JSON);
+                for (RestClient restClient : restClientList) {
+                    Response response = restClient.performRequest("POST", "/_bulk", Collections.<String, String>emptyMap(), entity);
+                    String str = IOUtils.readLines(response.getEntity().getContent()).get(0);
+                    JSONObject rootObj = JSON.parseObject(str);
+                    long took = rootObj.getLong("took");
+                    boolean hasFailures = rootObj.getBoolean("errors");
+                    logger.info("took:{}, hasFailures:{}", took, hasFailures);
+
+                }
                 long esReqTimeEnd = System.currentTimeMillis();//接收到es回复 end time
 
                 totalRequestTime = totalRequestTime + (esReqTimeEnd - esReqTimeStart);

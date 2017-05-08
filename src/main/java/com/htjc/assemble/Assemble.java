@@ -2,7 +2,8 @@ package com.htjc.assemble;
 
 import com.alibaba.rocketmq.client.exception.MQClientException;
 import com.htjc.assemble.config.CliOptions;
-import com.htjc.assemble.pool.EsClientPool;
+import com.htjc.assemble.config.ProcedureConfig;
+import com.htjc.assemble.pool.EsRestClientPool;
 import com.htjc.assemble.util.ConfigUtil;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.HelpFormatter;
@@ -31,13 +32,22 @@ public class Assemble {
         //加载配置(从配置中心或本地配置文件加载，命令行可指定参数)
         ConfigUtil.loadConfig(commandLine);
 
+        //验证rules配置
+        try {
+            logger.info("验证rules.conf配置");
+            ProcedureConfig.validateRules();
+        } catch (Exception e) {
+            logger.error("rules.conf配置有误", e);
+            System.exit(1);
+        }
+
         //mq消费者
         final Consumer consumer = new Consumer();
         try {
             consumer.start();
         } catch (MQClientException e) {
             logger.error("consumer start error", e);
-            System.exit(0);
+            System.exit(1);
         }
 
         //关闭钩子,释放资源
@@ -45,7 +55,7 @@ public class Assemble {
             @Override
             public void run() {
                 consumer.shutDown();
-                EsClientPool.closePool();
+                EsRestClientPool.closePool();
             }
         });
 
